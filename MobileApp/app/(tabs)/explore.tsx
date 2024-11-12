@@ -10,6 +10,10 @@ import { ThemedView } from '@/components/ThemedView';
 export default function TabTwoScreen() {
   return (
     <View>
+      <Image
+        source={require('Backpain-is-a-major-problem-for-adults.jpg')}
+        style={styles.headerImage}
+      />
       <Text style={styles.Headline}>Was ist ein gesunder Rücken?</Text>
       <Text>
         Ein gesunder Rücken ist ein Rücken, der nicht schmerzt. Rückenschmerzen
@@ -18,6 +22,13 @@ export default function TabTwoScreen() {
         Körperhaltung, schwache Muskeln, Übergewicht und Stress. Es gibt viele
         Dinge, die Sie tun können, um Ihren Rücken gesund zu halten, darunter
         regelmäßige Bewegung, gesunde Ernährung und Stressabbau. </Text>
+    
+    <Text style={styles.Headline}>Wie unser Produkt Ihnen hilft Ihren Rücken gesund zu halten.</Text>
+    <Text>
+      Unser Produkt ist ein Sportoberteil, welches Ihnen hilft,
+      Ihre Körperhaltung zu verbessern und Ihre Rückenmuskulatur zu stärken. Das Oberteil ist mit Sensoren ausgestattet, die Ihre Körperhaltung überwachen
+      und Ihnen Feedback geben, wenn Sie sich falsch bewegen oder über einen zu langen Zeitraum eine schlechte Haltung aufweisen. Unsere Technologie verwendet integrierte Dehnmessstreifen,
+      welche uns aufschluss über Fehlhaltungen geben und mittel kompatiebler App diese Informationen an sie weitergibt. </Text>
     </View>
   );
 }
