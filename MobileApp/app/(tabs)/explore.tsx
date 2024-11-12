@@ -9,9 +9,9 @@ import { ThemedView } from '@/components/ThemedView';
 
 export default function TabTwoScreen() {
   return (
-    <View>
+    <View style={styles.mainContainer}>
       <Image
-        source={require('Backpain-is-a-major-problem-for-adults.jpg')}
+        source={require('./Backpain-is-a-major-problem-for-adults.jpg')}
         style={styles.headerImage}
       />
       <Text style={styles.Headline}>Was ist ein gesunder Rücken?</Text>
@@ -34,11 +34,18 @@ export default function TabTwoScreen() {
 }
 
 const styles = StyleSheet.create({
+  mainContainer: {
+    height: "100%",
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   headerImage: {
     color: '#808080',
     bottom: -90,
     left: -35,
     position: 'absolute',
+    height: "100%"
   },
   titleContainer: {
     flexDirection: 'row',
