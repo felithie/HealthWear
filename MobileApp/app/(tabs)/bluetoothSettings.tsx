@@ -1,14 +1,16 @@
+
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { Dropdown } from 'react-native-element-dropdown';
 import AntDesign from '@expo/vector-icons/AntDesign';
-import { getBondedDevices, connectToDevice, disconnectFromDevice } from '../utilities/bluetoothService';
+import { getBondedDevices, connectToDevice, disconnectFromDevice, sendMessage, receiveMessage } from '../utilities/bluetoothService';
 
 export default function BluetoothScreen() {
   const [bondedDevices, setBondedDevices] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isFocus, setIsFocus] = useState(false);
+  const [receivedMessage, setReceivedMessage] = useState('');
 
   useEffect(() => {
     fetchBondedDevices();
@@ -29,7 +31,6 @@ export default function BluetoothScreen() {
   // Handle device selection change
   const handleDeviceChange = async (deviceId) => {
     if (selectedDevice && isConnected) {
-      // Disconnect from the currently connected device if any
       await disconnectFromDevice(selectedDevice.id);
     }
 
@@ -64,56 +65,80 @@ export default function BluetoothScreen() {
     }
   };
 
-  // Render the dropdown menu with device names as labels and ids as values
+  // Send a test message to the connected device
+  const handleSendMessage = async () => {
+    if (isConnected) {
+      try {
+        await sendMessage("Hello from React Native client");
+        console.log("Message sent to server");
+      } catch (error) {
+        console.warn("Error sending message:", error);
+        Alert.alert("Error", "Failed to send message to the device");
+      }
+    } else {
+      Alert.alert("Not Connected", "Please connect to a device first.");
+    }
+  };
+
+  // Receive a message from the connected device
+  const handleReceiveMessage = async () => {
+    if (isConnected) {
+      try {
+        const message = await receiveMessage();
+        setReceivedMessage(message);
+        console.log("Message received from server:", message);
+      } catch (error) {
+        console.warn("Error receiving message:", error);
+        Alert.alert("Error", "Failed to receive message from the device");
+      }
+    } else {
+      Alert.alert("Not Connected", "Please connect to a device first.");
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Bluetooth Device Selection</Text>
 
-      {/* Dropdown for selecting device */}
       <Dropdown
         style={[styles.dropdown, isFocus && { borderColor: 'blue' }]}
-        placeholderStyle={styles.placeholderStyle}
-        selectedTextStyle={styles.selectedTextStyle}
-        data={bondedDevices.map((device) => ({
-          label: device.name,   // Device name as the label
-          value: device.id,     // Device id as the value for interaction
-        }))}
-        labelField="label"
-        valueField="value"
-        placeholder={!isFocus ? 'Select device' : '...'}
-        value={selectedDevice ? selectedDevice.id : null}
+        data={bondedDevices}
+        value={selectedDevice?.id}
+        labelField="name"
+        valueField="id"
         onFocus={() => setIsFocus(true)}
         onBlur={() => setIsFocus(false)}
-        onChange={item => handleDeviceChange(item.value)} // Use the device ID as value
-        search
-        maxHeight={300}
-        searchPlaceholder="Search..."
-        renderLeftIcon={() => (
-          <AntDesign
-            style={styles.icon}
-            color={isFocus ? 'blue' : 'black'}
-            name="Safety"
-            size={20}
-          />
-        )}
+        onChange={item => {
+          handleDeviceChange(item.id);
+        }}
+        placeholder="Select a device"
       />
 
-      {/* Update button to refresh the bonded devices */}
-      <TouchableOpacity style={styles.button} onPress={fetchBondedDevices}>
-        <Text style={styles.buttonText}>Update Device List</Text>
+      {isConnected ? (
+        <Text style={styles.connectionStatus}>Connected to {selectedDevice?.name}</Text>
+      ) : (
+        <Text style={styles.connectionStatus}>Not connected</Text>
+      )}
+
+      <TouchableOpacity onPress={handleConnectDevice} style={styles.button}>
+        <Text style={styles.buttonText}>Connect</Text>
       </TouchableOpacity>
 
-      {/* Connect/Disconnect button */}
-      {selectedDevice ? (
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: isConnected ? 'red' : '#bd3a05' }]}
-          onPress={isConnected ? handleDisconnectDevice : handleConnectDevice}
-        >
-          <Text style={styles.buttonText}>{isConnected ? 'Disconnect' : 'Connect'}</Text>
-        </TouchableOpacity>
-      ) : (
-        <Text>No bonded devices found.</Text>
-      )}
+      <TouchableOpacity onPress={handleDisconnectDevice} style={styles.button}>
+        <Text style={styles.buttonText}>Disconnect</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity onPress={handleSendMessage} style={styles.button}>
+        <Text style={styles.buttonText}>Send Message</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity onPress={handleReceiveMessage} style={styles.button}>
+        <Text style={styles.buttonText}>Receive Message</Text>
+      </TouchableOpacity>
+
+      {receivedMessage ? (
+        <Text style={styles.receivedMessage}>Received: {receivedMessage}</Text>
+      ) : null}
     </View>
   );
 }
@@ -159,5 +184,11 @@ const styles = StyleSheet.create({
   buttonText: {
     color: 'white',
     fontSize: 16,
+  },
+  messageText: {
+    fontSize: 16,
+    marginTop: 20,
+    color: 'black',
+    textAlign: 'center',
   },
 });
