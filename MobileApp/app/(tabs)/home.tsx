@@ -1,9 +1,21 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Image, StyleSheet, Platform, TouchableOpacity, Text, View } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { Link } from 'expo-router';
+import { requestBluetoothPermission, manager, scanAndConnect } from '../utilities/bluetoothService';
 
 export default function HomeScreen() {
+  React.useEffect(() => {
+    const subscription = manager.onStateChange(state => {
+      if (state === 'PoweredOn') {
+        scanAndConnect()
+        console.log(state)
+        subscription.remove()
+      }
+    }, true)
+    return () => subscription.remove()
+  }, [manager])
+
   return (
     <View style={styles.mainContainer}>
       <View style={styles.titleContainer}>
@@ -21,6 +33,9 @@ export default function HomeScreen() {
               <Text style={styles.buttonText}>Go to Explore</Text>
             </TouchableOpacity>
           </Link>
+          <TouchableOpacity style={styles.normalButton} onPress={() => requestBluetoothPermission()}>
+              <Text style={styles.buttonText}>Request Bluetooth Permission</Text>
+            </TouchableOpacity>
         </View>
         <View style={styles.barGraphView}>
 
