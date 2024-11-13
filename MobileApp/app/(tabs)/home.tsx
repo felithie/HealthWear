@@ -1,21 +1,10 @@
-import React, { useEffect } from 'react';
-import { Image, StyleSheet, Platform, TouchableOpacity, Text, View } from 'react-native';
+// HomeScreen.js
+import React from 'react';
+import { StyleSheet, TouchableOpacity, Text, View } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { Link } from 'expo-router';
-import { requestBluetoothPermission, manager, scanAndConnect } from '../utilities/bluetoothService';
 
 export default function HomeScreen() {
-  React.useEffect(() => {
-    const subscription = manager.onStateChange(state => {
-      if (state === 'PoweredOn') {
-        scanAndConnect()
-        console.log(state)
-        subscription.remove()
-      }
-    }, true)
-    return () => subscription.remove()
-  }, [manager])
-
   return (
     <View style={styles.mainContainer}>
       <View style={styles.titleContainer}>
@@ -33,12 +22,11 @@ export default function HomeScreen() {
               <Text style={styles.buttonText}>Go to Explore</Text>
             </TouchableOpacity>
           </Link>
-          <TouchableOpacity style={styles.normalButton} onPress={() => requestBluetoothPermission()}>
-              <Text style={styles.buttonText}>Request Bluetooth Permission</Text>
+          <Link href="/(tabs)\bluetoothSettings" asChild>
+            <TouchableOpacity style={styles.normalButton}>
+              <Text style={styles.buttonText}>Go to Bluetooth Devices</Text>
             </TouchableOpacity>
-        </View>
-        <View style={styles.barGraphView}>
-
+          </Link>
         </View>
       </View>
     </View>
@@ -47,44 +35,41 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   mainContainer: {
-    width: "100%",
-    height: "100%",
-      backgroundColor: "white"
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'white',
   },
   titleContainer: {
     marginTop: 100,
-    marginHorizontal: 20
+    marginHorizontal: 20,
   },
   firstChildContainer: {
-    justifyContent: "center",
+    justifyContent: 'center',
     alignItems: 'center',
-    width: "100%",
-    height: "100%",
+    width: '100%',
+    height: '100%',
   },
   contentContainer: {
-    width: "100%",
-    height: "auto",
-    justifyContent: "center",
-    alignItems: "center"
+    width: '100%',
+    height: 'auto',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   titleText: {
-    color: "#bd3a05",
+    color: '#bd3a05',
   },
   normalButton: {
-    width: "80%",
+    width: '80%',
     maxWidth: 200,
     height: 60,
-    backgroundColor: "#bd3a05",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: '#bd3a05',
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: 10,
     marginTop: 10,
   },
-  barGraphView: {
-
-  },
   buttonText: {
-    color: "white",
-    fontSize: 20
-  }
-})
+    color: 'white',
+    fontSize: 20,
+  },
+});
