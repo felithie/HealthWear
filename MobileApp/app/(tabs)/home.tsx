@@ -3,8 +3,19 @@ import React from 'react';
 import { StyleSheet, TouchableOpacity, Text, View } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { Link } from 'expo-router';
+import { saveData } from '../utilities/firebaseConfig';  // Adjust the import path
 
 export default function HomeScreen() {
+  const handleSaveData = async () => {
+    try {
+      await saveData();
+      alert('Data saved successfully!');
+    } catch (error) {
+      console.error('Error saving data:', error);
+      alert('Failed to save data');
+    }
+  };
+
   return (
     <View style={styles.mainContainer}>
       <View style={styles.titleContainer}>
@@ -27,6 +38,11 @@ export default function HomeScreen() {
               <Text style={styles.buttonText}>Go to Bluetooth Devices</Text>
             </TouchableOpacity>
           </Link>
+
+          {/* New button to trigger saveData */}
+          <TouchableOpacity style={styles.normalButton} onPress={handleSaveData}>
+            <Text style={styles.buttonText}>Save User Data</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </View>
