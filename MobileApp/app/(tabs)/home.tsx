@@ -1,11 +1,42 @@
-// HomeScreen.js
 import React from 'react';
 import { StyleSheet, TouchableOpacity, Text, View } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { Link } from 'expo-router';
-import { saveData } from '../utilities/firebaseConfig';  // Adjust the import path
+import { saveData } from '../utilities/firebaseConfig';  
+import Svg, { Rect } from 'react-native-svg';  
+
+const Heatmap = ({ values, width, height }) => {
+  const cellSize = 30; 
+  const rows = Math.ceil(values.length / 7); 
+
+  return (
+    <Svg width={width} height={height}>
+      {values.map((value, index) => {
+        const x = (index % 7) * cellSize; 
+        const y = Math.floor(index / 7) * cellSize; 
+        const color = value.count
+          ? `rgb(${Math.min(255, value.count * 10)}, 0, 0)`
+          : 'white';
+
+        return (
+          <Rect
+            key={index}
+            x={x}
+            y={y}
+            width={cellSize}
+            height={cellSize}
+            fill={color}
+            stroke="gray"
+            strokeWidth="0.5"
+          />
+        );
+      })}
+    </Svg>
+  );
+};
 
 export default function HomeScreen() {
+  
   const handleSaveData = async () => {
     try {
       await saveData();
@@ -16,10 +47,38 @@ export default function HomeScreen() {
     }
   };
 
+  const getDates = () => {
+    const daysInMonth = (year, month) => new Date(year, month, 0).getDate(); // Get the total number of days in the month
+    let daysArray = [];
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth() + 1; // Months are zero-indexed
+  
+    // Loop over all the days in the month and create an object for each day
+    for (let i = 1; i <= daysInMonth(year, month); i++) {
+      daysArray.push({
+        date: `${year}-${month < 10 ? '0' + month : month}-${i < 10 ? '0' + i : i}`, // Format the date as YYYY-MM-DD
+        count: 12 // You can modify this with dynamic data later
+      });
+    }
+  
+    console.log(daysArray);
+    return daysArray;
+  };
+
+  // Directly assign the dates array to heatmapData
+  const heatmapData = getDates();
+
   return (
     <View style={styles.mainContainer}>
       <View style={styles.titleContainer}>
         <ThemedText style={styles.titleText} type="title">Welcome to the Health Device App!</ThemedText>
+      </View>
+      <View style={styles.graphContainer}>
+        <Text>Heatmap</Text>
+        <View style={styles.heatmapContainer}>
+          <Heatmap values={heatmapData} width={500} height={300} />
+        </View>
       </View>
       <View style={styles.firstChildContainer}>
         <View style={styles.contentContainer}>
@@ -33,7 +92,7 @@ export default function HomeScreen() {
               <Text style={styles.buttonText}>Go to Explore</Text>
             </TouchableOpacity>
           </Link>
-          <Link href="/(tabs)\bluetoothSettings" asChild>
+          <Link href="/(tabs)/bluetoothSettings" asChild>
             <TouchableOpacity style={styles.normalButton}>
               <Text style={styles.buttonText}>Go to Bluetooth Devices</Text>
             </TouchableOpacity>
@@ -48,6 +107,7 @@ export default function HomeScreen() {
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   mainContainer: {
@@ -71,8 +131,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  graphContainer: {
+    justifyContent: "center",
+    alignItems: "center"
+  },
+  heatmapContainer: {
+    justifyContent: "center",
+    alignItems: "center"
+  },
   titleText: {
     color: '#bd3a05',
+  },
+  graphView: {
+    height: "100%",
+    width: "100%"
   },
   normalButton: {
     width: '80%',

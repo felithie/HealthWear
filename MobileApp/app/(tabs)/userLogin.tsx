@@ -1,13 +1,14 @@
 import React, { useEffect } from 'react';
 import { StyleSheet, TouchableOpacity, Text, View, TextInput } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
-import { storeData, getData, saveData, checkFirebaseAuth } from "../utilities/firebaseConfig"
-import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
+import { storeData, checkFirebaseAuth } from "../utilities/firebaseConfig";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import { Link } from 'expo-router';
+
 
 const auth = checkFirebaseAuth()
 
-export default function Register() {
+export default function Login() {
   const [email, onChangeEmail] = React.useState('');
   const [password, onChangePassword] = React.useState('');
 
@@ -18,10 +19,10 @@ export default function Register() {
       storeAuthData();
   }, []);
 
-  return (
+  return(
     <View style={styles.mainContainer}>
       <View style={styles.titleContainer}>
-        <ThemedText style={styles.titleText} type="title">Register screen!</ThemedText>
+        <ThemedText style={styles.titleText} type="title">Login screen!</ThemedText>
       </View>
       <View style={styles.mainLoginContainer}>
         <View style={styles.childLoginContainer}>
@@ -44,7 +45,7 @@ export default function Register() {
         </View>
         <View style={styles.buttonView}>
           <TouchableOpacity style={styles.normalButton} onPress={() =>  
-            createUserWithEmailAndPassword(auth, email, password)
+            signInWithEmailAndPassword(auth, email, password)
             .then((userCredential) => {
               console.log("Registered")
               const user = userCredential.user;
@@ -59,7 +60,7 @@ export default function Register() {
               fontSize: 20,
               color: "white"
             }}>
-              Registrieren
+              Login
             </Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.normalButton} onPress={() =>  console.log(email)}>
@@ -78,8 +79,9 @@ export default function Register() {
         </View>
       </View>
     </View>
-  );
+  )
 }
+
 
 const styles = StyleSheet.create({
   mainContainer: {

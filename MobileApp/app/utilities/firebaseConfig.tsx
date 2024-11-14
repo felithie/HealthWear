@@ -9,18 +9,28 @@ const firebaseConfig = {
     messagingSenderId: '708390894238',
 };
 
+// Initialize Firebase app if it hasn't been initialized
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 
+let authInstance;
+
 export const checkFirebaseAuth = () => {
-    return initializeAuth(app, {
+    // Return the existing auth instance if it's already initialized
+    if (authInstance) {
+        return authInstance;
+    }
+    
+    // Initialize auth if it hasn't been initialized yet
+    authInstance = initializeAuth(app, {
         persistence: getReactNativePersistence(ReactNativeAsyncStorage),
     });
+    return authInstance;
 };
 
 export const storeData = async (value: Object | null) => {
   try {
-    const jsonValue = JSON.stringify(value === null ? value : value);
+    const jsonValue = JSON.stringify(value);
     await ReactNativeAsyncStorage.setItem('my-key', jsonValue);
   } catch (e) {
     console.error("Error saving data: ", e);

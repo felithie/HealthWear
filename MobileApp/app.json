@@ -30,7 +30,7 @@
     },
     "plugins": [
       "expo-router",
-      "react-native-ble-plx"
+      "react-native-ble-plx",
     ],
     "experiments": {
       "typedRoutes": true

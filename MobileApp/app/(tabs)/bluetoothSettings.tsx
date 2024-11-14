@@ -1,50 +1,79 @@
-
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { Dropdown } from 'react-native-element-dropdown';
-import AntDesign from '@expo/vector-icons/AntDesign';
-import { getBondedDevices, connectToDevice, disconnectFromDevice, sendMessage, receiveMessage } from '../utilities/bluetoothService';
+import { View, Text, TouchableOpacity, StyleSheet, FlatList, Alert } from 'react-native';
+import { BleManager } from 'react-native-ble-plx';
+
+const manager = new BleManager();
 
 export default function BluetoothScreen() {
-  const [bondedDevices, setBondedDevices] = useState([]);
+  const [scannedDevices, setScannedDevices] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [isFocus, setIsFocus] = useState(false);
-  const [receivedMessage, setReceivedMessage] = useState('');
+  const [isScanning, setIsScanning] = useState(false);
+  const [receivedData, setReceivedData] = useState("");  // State to hold received data
 
   useEffect(() => {
-    fetchBondedDevices();
+    return () => {
+      manager.stopDeviceScan();
+      manager.destroy();
+    };
   }, []);
 
-  // Function to get the list of bonded devices
-  const fetchBondedDevices = async () => {
-    try {
-      const devices = await getBondedDevices();
-      setBondedDevices(devices);
-      setSelectedDevice(devices.length > 0 ? devices[0] : null);
-      setIsConnected(false); // Reset connection state when devices list is updated
-    } catch (error) {
-      console.warn("Error getting bonded devices:", error);
-    }
+  // Start scanning for devices
+  const startScan = () => {
+    setIsScanning(true);
+    setScannedDevices([]); // Clear previous scan results
+
+    manager.startDeviceScan(null, null, (error, device) => {
+      if (error) {
+        console.warn("Error scanning for devices:", error);
+        setIsScanning(false);
+        return;
+      }
+
+      // Check if the device has a name, ID, and if it's already in the list
+      if (device && device.name && device.id && !scannedDevices.find(d => d.id === device.id)) {
+        setScannedDevices(prevDevices => [...prevDevices, device]);
+      }
+    });
+
+    // Stop scanning after 10 seconds
+    setTimeout(() => {
+      manager.stopDeviceScan();
+      setIsScanning(false);
+    }, 10000);
   };
 
-  // Handle device selection change
-  const handleDeviceChange = async (deviceId) => {
-    if (selectedDevice && isConnected) {
-      await disconnectFromDevice(selectedDevice.id);
-    }
-
-    const newDevice = bondedDevices.find((device) => device.id === deviceId);
-    setSelectedDevice(newDevice);
-    setIsConnected(false); // Reset connection state for new device
-  };
-
-  // Connect to the selected device
-  const handleConnectDevice = async () => {
-    if (selectedDevice) {
+  // Connect to a selected device
+  const handleConnectDevice = async (device) => {
+    if (device) {
       try {
-        await connectToDevice(selectedDevice.id);
+        await device.connect();
+        setSelectedDevice(device);
         setIsConnected(true);
+
+        // Discover services and characteristics once connected
+        const services = await device.discoverAllServicesAndCharacteristics();
+
+        // Find the characteristic you want to read from (this is a placeholder UUID)
+        const characteristic = await device.readCharacteristicForService(
+          'your-service-uuid', // Replace with your service UUID
+          'your-characteristic-uuid' // Replace with your characteristic UUID
+        );
+
+        // Subscribe to notifications if the characteristic supports it
+        device.monitorCharacteristicForService(
+          'your-service-uuid',
+          'your-characteristic-uuid',
+          (error, characteristic) => {
+            if (error) {
+              console.warn("Error monitoring characteristic:", error);
+            } else {
+              const value = characteristic.value;
+              const decodedValue = value ? Buffer.from(value, 'base64').toString('utf8') : '';
+              setReceivedData(decodedValue);  // Set the received data
+            }
+          }
+        );
       } catch (error) {
         console.warn("Error connecting to device:", error);
         Alert.alert("Error", "Failed to connect to the device");
@@ -52,12 +81,13 @@ export default function BluetoothScreen() {
     }
   };
 
-  // Disconnect from the selected device
+  // Disconnect from the connected device
   const handleDisconnectDevice = async () => {
-    if (selectedDevice && isConnected) {
+    if (selectedDevice) {
       try {
-        await disconnectFromDevice(selectedDevice.id);
+        await selectedDevice.disconnect();
         setIsConnected(false);
+        setSelectedDevice(null);
       } catch (error) {
         console.warn("Error disconnecting from device:", error);
         Alert.alert("Error", "Failed to disconnect from the device");
@@ -65,80 +95,46 @@ export default function BluetoothScreen() {
     }
   };
 
-  // Send a test message to the connected device
-  const handleSendMessage = async () => {
-    if (isConnected) {
-      try {
-        await sendMessage("Hello from React Native client");
-        console.log("Message sent to server");
-      } catch (error) {
-        console.warn("Error sending message:", error);
-        Alert.alert("Error", "Failed to send message to the device");
-      }
-    } else {
-      Alert.alert("Not Connected", "Please connect to a device first.");
-    }
-  };
-
-  // Receive a message from the connected device
-  const handleReceiveMessage = async () => {
-    if (isConnected) {
-      try {
-        const message = await receiveMessage();
-        setReceivedMessage(message);
-        console.log("Message received from server:", message);
-      } catch (error) {
-        console.warn("Error receiving message:", error);
-        Alert.alert("Error", "Failed to receive message from the device");
-      }
-    } else {
-      Alert.alert("Not Connected", "Please connect to a device first.");
-    }
-  };
-
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Bluetooth Device Selection</Text>
+      <Text style={styles.title}>Bluetooth Devices</Text>
 
-      <Dropdown
-        style={[styles.dropdown, isFocus && { borderColor: 'blue' }]}
-        data={bondedDevices}
-        value={selectedDevice?.id}
-        labelField="name"
-        valueField="id"
-        onFocus={() => setIsFocus(true)}
-        onBlur={() => setIsFocus(false)}
-        onChange={item => {
-          handleDeviceChange(item.id);
-        }}
-        placeholder="Select a device"
+      <TouchableOpacity onPress={startScan} style={styles.button}>
+        <Text style={styles.buttonText}>{isScanning ? "Scanning..." : "Scan for Devices"}</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.sectionTitle}>Discovered Devices</Text>
+      <FlatList
+        data={scannedDevices}
+        keyExtractor={(item, index) => `${item.id}-${index}`}  // Ensuring unique keys
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            onPress={() => handleConnectDevice(item)}
+            style={styles.deviceItem}
+          >
+            <Text style={styles.deviceText}>{item.name || "Unnamed Device"}</Text>
+            <Text style={styles.deviceId}>{item.id}</Text>
+          </TouchableOpacity>
+        )}
       />
 
-      {isConnected ? (
-        <Text style={styles.connectionStatus}>Connected to {selectedDevice?.name}</Text>
-      ) : (
-        <Text style={styles.connectionStatus}>Not connected</Text>
+      {isConnected && selectedDevice && (
+        <View style={styles.connectionInfo}>
+          <Text style={styles.connectionStatus}>Connected to {selectedDevice.name}</Text>
+          
+          {/* Show the received data */}
+          {receivedData ? (
+            <Text style={styles.receivedData}>Received Data: {receivedData}</Text>
+          ) : (
+            <Text style={styles.receivedData}>Waiting for data...</Text>
+          )}
+
+          {/* Disconnect button */}
+          <TouchableOpacity onPress={handleDisconnectDevice} style={styles.button}>
+            <Text style={styles.buttonText}>Disconnect</Text>
+          </TouchableOpacity>
+        </View>
       )}
-
-      <TouchableOpacity onPress={handleConnectDevice} style={styles.button}>
-        <Text style={styles.buttonText}>Connect</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity onPress={handleDisconnectDevice} style={styles.button}>
-        <Text style={styles.buttonText}>Disconnect</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity onPress={handleSendMessage} style={styles.button}>
-        <Text style={styles.buttonText}>Send Message</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity onPress={handleReceiveMessage} style={styles.button}>
-        <Text style={styles.buttonText}>Receive Message</Text>
-      </TouchableOpacity>
-
-      {receivedMessage ? (
-        <Text style={styles.receivedMessage}>Received: {receivedMessage}</Text>
-      ) : null}
     </View>
   );
 }
@@ -155,25 +151,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 20,
   },
-  dropdown: {
-    height: 50,
-    width: '100%',
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 5,
-    marginBottom: 20,
-  },
-  placeholderStyle: {
-    fontSize: 16,
-    color: 'gray',
-  },
-  selectedTextStyle: {
-    fontSize: 16,
-    color: 'black',
-  },
-  icon: {
-    marginRight: 5,
-  },
   button: {
     backgroundColor: '#bd3a05',
     padding: 10,
@@ -185,10 +162,35 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
   },
-  messageText: {
-    fontSize: 16,
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
     marginTop: 20,
+  },
+  deviceItem: {
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+  },
+  deviceText: {
+    fontSize: 16,
     color: 'black',
-    textAlign: 'center',
+  },
+  deviceId: {
+    fontSize: 12,
+    color: 'gray',
+  },
+  connectionInfo: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  connectionStatus: {
+    fontSize: 18,
+    color: 'green',
+  },
+  receivedData: {
+    fontSize: 16,
+    marginTop: 10,
+    color: '#333',
   },
 });
