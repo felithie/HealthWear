@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, FlatList, Alert } from 'react-native';
 import { BleManager } from 'react-native-ble-plx';
+import { atob } from 'react-native-quick-base64';
 
-const manager = new BleManager();
+let manager = new BleManager();
 
 export default function BluetoothScreen() {
   const [scannedDevices, setScannedDevices] = useState([]);
@@ -18,7 +19,7 @@ export default function BluetoothScreen() {
     };
   }, []);
 
-  // Start scanning for devices
+  // Start scanning for devices named "Team4" only
   const startScan = () => {
     setIsScanning(true);
     setScannedDevices([]); // Clear previous scan results
@@ -30,8 +31,8 @@ export default function BluetoothScreen() {
         return;
       }
 
-      // Check if the device has a name, ID, and if it's already in the list
-      if (device && device.name && device.id && !scannedDevices.find(d => d.id === device.id)) {
+      // Check if the device's name is "Team4" and if it's not already in the list
+      if (device && device.name === "Team4" && device.id && !scannedDevices.find(d => d.id === device.id)) {
         setScannedDevices(prevDevices => [...prevDevices, device]);
       }
     });
@@ -44,63 +45,77 @@ export default function BluetoothScreen() {
   };
 
   // Connect to a selected device
+  let subscription = null; // Global variable to hold the subscription
+
+  // Connect to a selected device
   const handleConnectDevice = async (device) => {
     if (device) {
       try {
         await device.connect();
         setSelectedDevice(device);
         setIsConnected(true);
-
-        // Discover services and characteristics once connected
-        const services = await device.discoverAllServicesAndCharacteristics();
-
-        // Find the characteristic you want to read from (this is a placeholder UUID)
-        const characteristic = await device.readCharacteristicForService(
-          'your-service-uuid', // Replace with your service UUID
-          'your-characteristic-uuid' // Replace with your characteristic UUID
-        );
-
-        // Subscribe to notifications if the characteristic supports it
-        device.monitorCharacteristicForService(
-          'your-service-uuid',
-          'your-characteristic-uuid',
+  
+        // Discover all services and characteristics
+        await device.discoverAllServicesAndCharacteristics();
+  
+        // Subscribe to notifications on the characteristic
+        subscription = device.monitorCharacteristicForService(
+          '0000180f-0000-1000-8000-00805f9b34fb', // Service UUID
+          '00002a37-0000-1000-8000-00805f9b34fb', // Characteristic UUID
           (error, characteristic) => {
             if (error) {
               console.warn("Error monitoring characteristic:", error);
             } else {
               const value = characteristic.value;
-              const decodedValue = value ? Buffer.from(value, 'base64').toString('utf8') : '';
+              const decodedValue = value ? atob(value) : '';
               setReceivedData(decodedValue);  // Set the received data
             }
           }
         );
+  
       } catch (error) {
         console.warn("Error connecting to device:", error);
         Alert.alert("Error", "Failed to connect to the device");
       }
     }
   };
-
+  
   // Disconnect from the connected device
   const handleDisconnectDevice = async () => {
     if (selectedDevice) {
       try {
-        await selectedDevice.disconnect();
+        console.log("Disconnecting from device:", selectedDevice);
+  
+        // Unsubscribe from characteristic monitoring if active
+        if (subscription) {
+          subscription.remove();
+          subscription = null;
+        }
+  
+        // Disconnect the device
+        await manager.cancelDeviceConnection(selectedDevice.id);
         setIsConnected(false);
         setSelectedDevice(null);
+  
       } catch (error) {
         console.warn("Error disconnecting from device:", error);
         Alert.alert("Error", "Failed to disconnect from the device");
+      } finally {
+        manager.destroy();
+        manager = new BleManager();
       }
     }
   };
+  
+  
+  
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Bluetooth Devices</Text>
 
       <TouchableOpacity onPress={startScan} style={styles.button}>
-        <Text style={styles.buttonText}>{isScanning ? "Scanning..." : "Scan for Devices"}</Text>
+        <Text style={styles.buttonText}>{isScanning ? "Scanning..." : "Scan for 'Team4'"}</Text>
       </TouchableOpacity>
 
       <Text style={styles.sectionTitle}>Discovered Devices</Text>
