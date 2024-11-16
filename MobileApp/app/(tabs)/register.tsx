@@ -40,6 +40,7 @@ export default function Register() {
             onChangeText={onChangePassword}
             value={password}
             placeholder="Hier ihr Passwort"
+            secureTextEntry={true} 
           />
         </View>
         <View style={styles.buttonView}>

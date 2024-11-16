@@ -41,6 +41,7 @@ export default function Login() {
             onChangeText={onChangePassword}
             value={password}
             placeholder="Hier ihr Passwort"
+            secureTextEntry={true} 
           />
         </View>
         <View style={styles.buttonView}>
@@ -63,19 +64,6 @@ export default function Login() {
               Login
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.normalButton} onPress={() =>  console.log(email)}>
-            <Text style={{
-              fontSize: 20,
-              color: "white"
-            }}>
-              Test
-            </Text>
-          </TouchableOpacity>
-          <Link href="/(tabs)/userLogin" asChild>
-            <TouchableOpacity style={styles.normalButton}>
-              <Text style={styles.buttonText}>Go to Login</Text>
-            </TouchableOpacity>
-          </Link>
         </View>
       </View>
     </View>
