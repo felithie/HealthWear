@@ -1,16 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, FlatList, Alert } from 'react-native';
-import { BleManager } from 'react-native-ble-plx';
+import { BleManager, Device } from 'react-native-ble-plx';
 import { atob } from 'react-native-quick-base64';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 let manager = new BleManager();
 
 export default function BluetoothScreen() {
-  const [scannedDevices, setScannedDevices] = useState([]);
-  const [selectedDevice, setSelectedDevice] = useState(null);
-  const [isConnected, setIsConnected] = useState(false);
-  const [isScanning, setIsScanning] = useState(false);
-  const [receivedData, setReceivedData] = useState("");  // State to hold received data
+  const [scannedDevices, setScannedDevices]: any = useState([]);
+  const [selectedDevice, setSelectedDevice]: any = useState(null);
+  const [isConnected, setIsConnected]: any = useState(false);
+  const [isScanning, setIsScanning]: any = useState(false);
+  const [receivedData, setReceivedData]: any = useState("");  // State to hold received data
 
   useEffect(() => {
     return () => {
@@ -19,7 +20,6 @@ export default function BluetoothScreen() {
     };
   }, []);
 
-  // Start scanning for devices named "Team4" only
   const startScan = () => {
     setIsScanning(true);
     setScannedDevices([]); // Clear previous scan results
@@ -30,14 +30,28 @@ export default function BluetoothScreen() {
         setIsScanning(false);
         return;
       }
-
-      // Check if the device's name is "Team4" and if it's not already in the list
-      if (device && device.name === "Team4" && device.id && !scannedDevices.find(d => d.id === device.id)) {
-        setScannedDevices(prevDevices => [...prevDevices, device]);
+    
+      if (device && device.name === "Team4" && device.id) {
+        
+        // Check if the device is already in the list
+        setScannedDevices((prevDevices: Device[]) => {
+          // Check if the device ID already exists in the list
+          const isDeviceInList = prevDevices.find(d => d.id === device.id);
+          
+          if (!isDeviceInList) {
+            // Add the device if it's not already in the list
+            return [...prevDevices, device];
+          } else {
+            // Return previous state if the device is already in the list
+            return prevDevices;
+          }
+        });
       }
     });
+    
+    
+    
 
-    // Stop scanning after 10 seconds
     setTimeout(() => {
       manager.stopDeviceScan();
       setIsScanning(false);
@@ -45,48 +59,65 @@ export default function BluetoothScreen() {
   };
 
   // Connect to a selected device
-  let subscription = null; // Global variable to hold the subscription
+  let subscription: any = null; // Global variable to hold the subscription
 
   // Connect to a selected device
-  const handleConnectDevice = async (device) => {
-    if (device) {
-      try {
-        await device.connect();
-        setSelectedDevice(device);
-        setIsConnected(true);
-  
-        // Discover all services and characteristics
-        await device.discoverAllServicesAndCharacteristics();
-  
-        // Subscribe to notifications on the characteristic
-        subscription = device.monitorCharacteristicForService(
-          '0000180f-0000-1000-8000-00805f9b34fb', // Service UUID
-          '00002a37-0000-1000-8000-00805f9b34fb', // Characteristic UUID
-          (error, characteristic) => {
-            if (error) {
-              console.warn("Error monitoring characteristic:", error);
-            } else {
-              const value = characteristic.value;
-              const decodedValue = value ? atob(value) : '';
-              setReceivedData(decodedValue);  // Set the received data
-            }
+  // BluetoothScreen.js
+
+
+const saveCharacteristicsToStorage = async (serviceUUID, characteristicUUID) => {
+  try {
+    const characteristics = { serviceUUID, characteristicUUID };
+    await AsyncStorage.setItem('bluetoothCharacteristics', JSON.stringify(characteristics));
+    console.log("Characteristics saved to AsyncStorage");
+  } catch (error) {
+    console.warn("Error saving characteristics:", error);
+  }
+};
+
+const handleConnectDevice = async (device) => {
+  if (device) {
+    try {
+      await device.connect();
+      setSelectedDevice(device);
+      setIsConnected(true);
+
+      // Discover all services and characteristics
+      await device.discoverAllServicesAndCharacteristics();
+
+      // Define the characteristics data (service and characteristic UUIDs)
+      const serviceUUID = '0000180f-0000-1000-8000-00805f9b34fb';
+      const characteristicUUID = '00002a37-0000-1000-8000-00805f9b34fb';
+
+      // Save the characteristics to AsyncStorage
+      await saveCharacteristicsToStorage(serviceUUID, characteristicUUID);
+
+      // Subscribe to notifications on the characteristic
+      subscription = device.monitorCharacteristicForService(
+        serviceUUID,
+        characteristicUUID,
+        (error, characteristic) => {
+          if (error) {
+            console.warn("Error monitoring characteristic:", error);
+          } else {
+            const value = characteristic.value;
+            const decodedValue = value ? atob(value) : '';
+            setReceivedData(decodedValue);  // Set the received data
           }
-        );
-  
-      } catch (error) {
-        console.warn("Error connecting to device:", error);
-        Alert.alert("Error", "Failed to connect to the device");
-      }
+        }
+      );
+    } catch (error) {
+      console.warn("Error connecting to device:", error);
     }
-  };
+  }
+};
+
   
-  // Disconnect from the connected device
   const handleDisconnectDevice = async () => {
     if (selectedDevice) {
       try {
         console.log("Disconnecting from device:", selectedDevice);
-  
-        // Unsubscribe from characteristic monitoring if active
+
         if (subscription) {
           subscription.remove();
           subscription = null;
@@ -100,15 +131,15 @@ export default function BluetoothScreen() {
       } catch (error) {
         console.warn("Error disconnecting from device:", error);
         Alert.alert("Error", "Failed to disconnect from the device");
+        setIsConnected(false);
+        setSelectedDevice(null);
       } finally {
         manager.destroy();
         manager = new BleManager();
       }
     }
   };
-  
-  
-  
+
 
   return (
     <View style={styles.container}>
@@ -121,7 +152,7 @@ export default function BluetoothScreen() {
       <Text style={styles.sectionTitle}>Discovered Devices</Text>
       <FlatList
         data={scannedDevices}
-        keyExtractor={(item, index) => `${item.id}-${index}`}  // Ensuring unique keys
+        keyExtractor={(item: any, index: any) => `${item.id}-${index}`}  // Ensuring unique keys
         renderItem={({ item }) => (
           <TouchableOpacity
             onPress={() => handleConnectDevice(item)}
