@@ -1,27 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { StyleSheet, TouchableOpacity, Text, View, ScrollView, Alert } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
-import { saveData, saveAdditionalDataToSubcollection, getDataForSpecificDate } from '../utilities/firebaseConfig';
+import { saveData, saveAdditionalDataToSubcollection, getDataForSpecificDate } from '../utilities/firebaseConfig';  
 import { Calendar } from 'react-native-calendars';
 import { markDates, getCurrentDate } from "../utilities/heatmapLogic";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { SensorCalc } from '../utilities/sensorCalculations';
-import { BleManager } from 'react-native-ble-plx';  // Assuming you're using `react-native-ble-plx`
 
 export default function HomeScreen() {
   const router = useRouter();
   const currentDate = getCurrentDate();
-  const [sensorPercent, setSensorPercent] = useState(80);
   const [sensorPercentColor, setSensorPercentColor] = useState("green");
-  const [connectionStatus, setConnectionStatus] = useState("No device connected");
-  const [receivedData, setReceivedData] = useState(null);
+  const [pressure, setPressure] = useState(String);
 
-  const manager = new BleManager();
   const sensorCalculationObj = new SensorCalc();
 
   // Function to calculate color based on sensor percent
-  const calculateColor = (value: number): string => {
+  const calculateColor = (pressure: number): string => {
+    const value = 100 - (pressure / 82.5) * 100; 
     const normalizedValue = Math.min(Math.max(value, 0), 100) / 100; // Normalize between 0 and 1
   
     // Apply exponential weighting to make red appear earlier
@@ -32,12 +29,28 @@ export default function HomeScreen() {
   
     return `rgb(${red}, ${green}, 0)`;
   };
+  
 
   // Update the color whenever sensorPercent changes
   useEffect(() => {
-    const newColor = calculateColor(sensorPercent);
+    const newColor = calculateColor(Number(pressure));
     setSensorPercentColor(newColor);
-  }, [sensorPercent]);
+  }, [pressure]);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const fetchedPressure = await AsyncStorage.getItem('pressure');
+      if (fetchedPressure) {
+        setPressure(fetchedPressure);
+        console.log(fetchedPressure);
+      }
+    }, 1000); // Fetch every 1 second
+  
+    return () => clearInterval(interval); // Clear the interval on unmount
+  }, []);
+
+  // Memoize the markedDates to avoid unnecessary recalculations
+  const markedDatesMemo = useMemo(() => markDates(), []); // Only calculate once on initial render
 
   // Handle saving data to Firebase
   const handleSaveData = async () => {
@@ -71,81 +84,15 @@ export default function HomeScreen() {
     }
   };
 
+  React.useEffect(() => {
+    fetchUserCredentials();
+  }, []);
+
   // Log the date when a day is pressed
   const onDayPress = (day: any) => {
     const selectedDate = new Date(day.timestamp);
     getDataForSpecificDate(selectedDate);  // Logs the selected date
   };
-
-  // Function to handle Bluetooth connection if characteristics are found in AsyncStorage
-  const handleBluetoothConnection = async () => {
-    try {
-      const storedCharacteristics = await AsyncStorage.getItem('bluetoothCharacteristics');
-      console.log(storedCharacteristics);
-      if (storedCharacteristics) {
-        const { serviceUUID, characteristicUUID } = JSON.parse(storedCharacteristics);
-  
-        // Start scanning for devices
-        manager.startDeviceScan([serviceUUID], null, (error, device) => {
-          if (error) {
-            console.warn('Error scanning for devices:', error);
-            return;
-          }
-  
-          console.log('Discovered device:', device);
-          // Check if the device matches the desired device
-          if (device.name === 'LE_WH-1000XM4') {  // Check the device name if applicable
-            manager.stopDeviceScan();  // Stop scanning once device is found
-            
-            // Attempt connection
-            device.connect()
-              .then((device) => {
-                console.log('Device connected:', device);
-                device.discoverAllServicesAndCharacteristics()
-                  .then(() => {
-                    console.log('Services and characteristics discovered');
-                    setConnectionStatus('Device connected');
-                    
-                    // Subscribe to the characteristic
-                    device.monitorCharacteristicForService(
-                      serviceUUID,
-                      characteristicUUID,
-                      (error, characteristic) => {
-                        if (error) {
-                          console.warn("Error monitoring characteristic:", error);
-                        } else {
-                          const value = characteristic.value;
-                          const decodedValue = value ? atob(value) : '';
-                          setReceivedData(decodedValue); // Update the state with received data
-                        }
-                      }
-                    );
-                  })
-                  .catch((err) => {
-                    console.warn("Error discovering services:", err);
-                  });
-              })
-              .catch((err) => {
-                console.warn('Error connecting to device:', err);
-                setConnectionStatus('Connection failed');
-              });
-          }
-        });
-      }
-    } catch (error) {
-      console.warn("Error retrieving Bluetooth characteristics:", error);
-      setConnectionStatus('No device connected');
-    }
-  };
-  
-  
-  
-  
-
-  // Initialize the Bluetooth connection when the component mounts
-  useEffect(() => {
-    handleBluetoothConnection();
-  }, []);
 
   return (
     <View style={styles.mainContainer}>
@@ -160,28 +107,19 @@ export default function HomeScreen() {
           <Calendar
             markingType="custom"  // Use custom marking type
             current={`${currentDate.year}-${String(currentDate.month + 1).padStart(2, '0')}-${String(currentDate.day).padStart(2, '0')}`} 
-            markedDates={markDates()}  // Dynamically pass the marked dates from `markDates`
+            markedDates={markedDatesMemo}  // Use the memoized marked dates
             monthFormat={'yyyy MM'}
             onDayPress={onDayPress}  // Handle day press
           />
         </ScrollView>
       </View>
-
       <View style={styles.realtimeOverviewContainer}>
         <View style={[styles.realtimeCircle, { backgroundColor: sensorPercentColor }]} />
         <View style={styles.realtimeTextContainer}>
           <Text style={styles.realtimeText}>How you are doing:</Text>
-          <Text style={styles.realtimePercent}>{sensorPercent}%</Text>
+          <Text style={styles.realtimePercent}>{(100 - Number(pressure) / 82.5 * 100).toFixed(1)}%</Text>
         </View>
       </View>
-
-      <View style={styles.connectionStatusContainer}>
-        <Text style={styles.connectionStatusText}>{connectionStatus}</Text>
-        {receivedData && (
-          <Text style={styles.receivedDataText}>Received Data: {receivedData}</Text>
-        )}
-      </View>
-
       <View style={styles.logoutContainer}>
         <TouchableOpacity style={styles.normalButton} onPress={handleLogout}>
           <Text style={styles.buttonText}>Logout</Text>
@@ -224,20 +162,6 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-  },
-  connectionStatusContainer: {
-    marginTop: 20,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  connectionStatusText: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "gray",
-  },
-  receivedDataText: {
-    fontSize: 16,
-    marginTop: 10,
   },
   titleText: {
     color: '#bd3a05',

@@ -30,27 +30,19 @@ export default function BluetoothScreen() {
         setIsScanning(false);
         return;
       }
-    
+
       if (device && device.name === "Team4" && device.id) {
-        
         // Check if the device is already in the list
         setScannedDevices((prevDevices: Device[]) => {
-          // Check if the device ID already exists in the list
           const isDeviceInList = prevDevices.find(d => d.id === device.id);
-          
           if (!isDeviceInList) {
-            // Add the device if it's not already in the list
             return [...prevDevices, device];
           } else {
-            // Return previous state if the device is already in the list
             return prevDevices;
           }
         });
       }
     });
-    
-    
-    
 
     setTimeout(() => {
       manager.stopDeviceScan();
@@ -58,61 +50,56 @@ export default function BluetoothScreen() {
     }, 10000);
   };
 
-  // Connect to a selected device
-  let subscription: any = null; // Global variable to hold the subscription
-
-  // Connect to a selected device
-  // BluetoothScreen.js
-
-
-const saveCharacteristicsToStorage = async (serviceUUID, characteristicUUID) => {
-  try {
-    const characteristics = { serviceUUID, characteristicUUID };
-    await AsyncStorage.setItem('bluetoothCharacteristics', JSON.stringify(characteristics));
-    console.log("Characteristics saved to AsyncStorage");
-  } catch (error) {
-    console.warn("Error saving characteristics:", error);
-  }
-};
-
-const handleConnectDevice = async (device) => {
-  if (device) {
+  // Save the characteristics and device to AsyncStorage
+  const saveDeviceToStorage = async (pressure) => {
     try {
-      await device.connect();
-      setSelectedDevice(device);
-      setIsConnected(true);
-
-      // Discover all services and characteristics
-      await device.discoverAllServicesAndCharacteristics();
-
-      // Define the characteristics data (service and characteristic UUIDs)
-      const serviceUUID = '0000180f-0000-1000-8000-00805f9b34fb';
-      const characteristicUUID = '00002a37-0000-1000-8000-00805f9b34fb';
-
-      // Save the characteristics to AsyncStorage
-      await saveCharacteristicsToStorage(serviceUUID, characteristicUUID);
-
-      // Subscribe to notifications on the characteristic
-      subscription = device.monitorCharacteristicForService(
-        serviceUUID,
-        characteristicUUID,
-        (error, characteristic) => {
-          if (error) {
-            console.warn("Error monitoring characteristic:", error);
-          } else {
-            const value = characteristic.value;
-            const decodedValue = value ? atob(value) : '';
-            setReceivedData(decodedValue);  // Set the received data
-          }
-        }
-      );
+     
+      await AsyncStorage.setItem("pressure", pressure);
     } catch (error) {
-      console.warn("Error connecting to device:", error);
+      console.warn("Error saving device:", error);
     }
-  }
-};
-
+  };
   
+
+  // Connect to a selected device
+  let subscription: any = null;
+
+  const handleConnectDevice = async (device) => {
+    if (device) {
+      try {
+        await device.connect();
+        setSelectedDevice(device);
+        setIsConnected(true);
+
+        // Discover all services and characteristics
+        await device.discoverAllServicesAndCharacteristics();
+
+        // Define the characteristics data (service and characteristic UUIDs)
+        const serviceUUID = '0000180f-0000-1000-8000-00805f9b34fb';
+        const characteristicUUID = '00002a37-0000-1000-8000-00805f9b34fb';
+
+        
+        // Subscribe to notifications on the characteristic
+        subscription = device.monitorCharacteristicForService(
+          serviceUUID,
+          characteristicUUID,
+          (error, characteristic) => {
+            if (error) {
+              console.warn("Error monitoring characteristic:", error);
+            } else {
+              const value = characteristic.value;
+              const decodedValue = value ? atob(value) : '';
+              saveDeviceToStorage(decodedValue)
+              setReceivedData(decodedValue);  // Set the received data
+            }
+          }
+        );
+      } catch (error) {
+        console.warn("Error connecting to device:", error);
+      }
+    }
+  };
+
   const handleDisconnectDevice = async () => {
     if (selectedDevice) {
       try {
@@ -122,12 +109,11 @@ const handleConnectDevice = async (device) => {
           subscription.remove();
           subscription = null;
         }
-  
+
         // Disconnect the device
         await manager.cancelDeviceConnection(selectedDevice.id);
         setIsConnected(false);
         setSelectedDevice(null);
-  
       } catch (error) {
         console.warn("Error disconnecting from device:", error);
         Alert.alert("Error", "Failed to disconnect from the device");
@@ -139,7 +125,6 @@ const handleConnectDevice = async (device) => {
       }
     }
   };
-
 
   return (
     <View style={styles.container}>
@@ -167,8 +152,6 @@ const handleConnectDevice = async (device) => {
       {isConnected && selectedDevice && (
         <View style={styles.connectionInfo}>
           <Text style={styles.connectionStatus}>Connected to {selectedDevice.name}</Text>
-          
-          {/* Show the received data */}
           {receivedData ? (
             <Text style={styles.receivedData}>Received Data: {receivedData}</Text>
           ) : (
