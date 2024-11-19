@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { StyleSheet, TouchableOpacity, Text, View, ScrollView, Alert } from 'react-native';
+import { StyleSheet, TouchableOpacity, Text, View, ScrollView, Alert, Vibration } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
-import { saveData, saveAdditionalDataToSubcollection, getDataForSpecificDate } from '../utilities/firebaseConfig';  
+import { getDataForSpecificDate, generateAndSavePressureData } from '../utilities/firebaseConfig';  
 import { Calendar } from 'react-native-calendars';
 import { markDates, getCurrentDate } from "../utilities/heatmapLogic";
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -13,15 +13,16 @@ export default function HomeScreen() {
   const currentDate = getCurrentDate();
   const [sensorPercentColor, setSensorPercentColor] = useState("green");
   const [pressure, setPressure] = useState(String);
+  const [markedDates, setmarkedDates] = useState({});
+
+  let counter = 0
 
   const sensorCalculationObj = new SensorCalc();
 
-  // Function to calculate color based on sensor percent
   const calculateColor = (pressure: number): string => {
     const value = 100 - (pressure / 82.5) * 100; 
     const normalizedValue = Math.min(Math.max(value, 0), 100) / 100; // Normalize between 0 and 1
   
-    // Apply exponential weighting to make red appear earlier
     const adjustedValue = Math.pow(normalizedValue, 1.7); // Square root gives a faster transition
   
     const green = Math.round(255 * adjustedValue); // Increase red more quickly
@@ -31,37 +32,44 @@ export default function HomeScreen() {
   };
   
 
-  // Update the color whenever sensorPercent changes
+
   useEffect(() => {
-    const newColor = calculateColor(Number(pressure));
-    setSensorPercentColor(newColor);
-  }, [pressure]);
+    const fetchMarkedDates = async () => {
+      try {
+        const dates = await markDates(); // Assume markDates returns a promise
+        setmarkedDates(dates);
+      } catch (error) {
+        console.error("Error fetching marked dates:", error);
+      }
+    };
+  
+    fetchMarkedDates();
+  }, []);
+  
+
 
   useEffect(() => {
     const interval = setInterval(async () => {
       const fetchedPressure = await AsyncStorage.getItem('pressure');
+
+      if((100 - Number(fetchedPressure) / 82.5 * 100) < 80) {
+        counter++
+        if(counter >= 10) {
+          Vibration.vibrate(1000)
+        }
+      } else {
+        counter = 0
+        Vibration.cancel()
+      }
+
       if (fetchedPressure) {
         setPressure(fetchedPressure);
-        console.log(fetchedPressure);
       }
-    }, 1000); // Fetch every 1 second
+    }, 1000); 
   
     return () => clearInterval(interval); // Clear the interval on unmount
   }, []);
 
-  // Memoize the markedDates to avoid unnecessary recalculations
-  const markedDatesMemo = useMemo(() => markDates(), []); // Only calculate once on initial render
-
-  // Handle saving data to Firebase
-  const handleSaveData = async () => {
-    try {
-      await saveData();
-      alert('Data saved successfully!');
-    } catch (error) {
-      console.error('Error saving data:', error);
-      alert('Failed to save data');
-    }
-  };
 
   // Fetch user credentials and redirect if not logged in
   const fetchUserCredentials = async () => {
@@ -89,10 +97,13 @@ export default function HomeScreen() {
   }, []);
 
   // Log the date when a day is pressed
-  const onDayPress = (day: any) => {
+  const onDayPress = async (day: any) => {
     const selectedDate = new Date(day.timestamp);
-    getDataForSpecificDate(selectedDate);  // Logs the selected date
+    const data = await getDataForSpecificDate(selectedDate); // Wait for the async function to resolve
+    console.log("Day of ondaypress: " + selectedDate)
+    console.log("Data for selected day:", data);  // Log the resolved data
   };
+  
 
   return (
     <View style={styles.mainContainer}>
@@ -107,7 +118,7 @@ export default function HomeScreen() {
           <Calendar
             markingType="custom"  // Use custom marking type
             current={`${currentDate.year}-${String(currentDate.month + 1).padStart(2, '0')}-${String(currentDate.day).padStart(2, '0')}`} 
-            markedDates={markedDatesMemo}  // Use the memoized marked dates
+            markedDates={markedDates}  // Use the memoized marked dates
             monthFormat={'yyyy MM'}
             onDayPress={onDayPress}  // Handle day press
           />
@@ -124,8 +135,8 @@ export default function HomeScreen() {
         <TouchableOpacity style={styles.normalButton} onPress={handleLogout}>
           <Text style={styles.buttonText}>Logout</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.normalButton} onPress={async () => saveAdditionalDataToSubcollection(Math.floor(Math.random() * 100))}>
-          <Text style={styles.buttonText}>Test Data Upload</Text>
+        <TouchableOpacity style={styles.normalButton} onPress={async () =>  generateAndSavePressureData(7)}>
+          <Text style={styles.buttonText}>Test Vibrate</Text>
         </TouchableOpacity>
       </View>
     </View>

@@ -4,7 +4,7 @@ import { BleManager, Device } from 'react-native-ble-plx';
 import { atob } from 'react-native-quick-base64';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-let manager = new BleManager();
+let manager = new BleManager(); 
 
 export default function BluetoothScreen() {
   const [scannedDevices, setScannedDevices]: any = useState([]);
@@ -51,7 +51,7 @@ export default function BluetoothScreen() {
   };
 
   // Save the characteristics and device to AsyncStorage
-  const saveDeviceToStorage = async (pressure) => {
+  const saveDeviceToStorage = async (pressure: string) => {
     try {
      
       await AsyncStorage.setItem("pressure", pressure);
@@ -64,7 +64,7 @@ export default function BluetoothScreen() {
   // Connect to a selected device
   let subscription: any = null;
 
-  const handleConnectDevice = async (device) => {
+  const handleConnectDevice = async (device: Device) => {
     if (device) {
       try {
         await device.connect();
@@ -83,7 +83,7 @@ export default function BluetoothScreen() {
         subscription = device.monitorCharacteristicForService(
           serviceUUID,
           characteristicUUID,
-          (error, characteristic) => {
+          (error: any, characteristic: any) => {
             if (error) {
               console.warn("Error monitoring characteristic:", error);
             } else {

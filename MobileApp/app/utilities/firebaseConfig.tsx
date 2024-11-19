@@ -99,17 +99,17 @@ export const saveAdditionalData = async (value: number) => {
 /**
  * Save additional data (integer value with a timestamp) to a user's subcollection.
  */
-export const saveAdditionalDataToSubcollection = async (value: any) => {
+export const saveAdditionalDataToSubcollection = async (data: { value: number; timestamp?: string }) => {
   try {
     const userId = getUserId(); // Automatically get userId
-    const timestamp = new Date().toISOString(); // Use timestamp as the document ID
+    const timestamp = data.timestamp || new Date().toISOString(); // Use provided timestamp or generate one
 
     // Reference the 'additionalData' subcollection under the user's document
     const subcollectionRef = collection(db, 'Users', userId, 'additionalData');
 
     // Add a new document with the timestamp as the document ID
     await setDoc(doc(subcollectionRef, timestamp), {
-      value: value,
+      value: data.value,
       timestamp: timestamp,
     });
 
@@ -117,6 +117,32 @@ export const saveAdditionalDataToSubcollection = async (value: any) => {
   } catch (error) {
     console.error("Error saving additional data to subcollection:", error);
   }
+};
+
+
+// Function to generate and save data for the last few days
+export const generateAndSavePressureData = async (days: number) => {
+  const now = new Date();
+
+  for (let day = 0; day < days; day++) {
+    for (let hour = 0; hour < 24; hour++) {
+      // Generate timestamp for each hour
+      const timestamp = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - day,
+        hour
+      ).toISOString();
+
+      // Generate random pressure value between 0 and 50
+      const pressureValue = parseFloat((Math.random() * 50).toFixed(2));
+
+      // Save data to subcollection
+      await saveAdditionalDataToSubcollection({ value: pressureValue, timestamp });
+    }
+  }
+
+  console.log("Generated and saved pressure data for the last", days, "days.");
 };
 
 
@@ -151,6 +177,65 @@ export const getDataForSpecificDate  = async (selectedDate: Date) => {
     dataForSelectedDate.push(doc.data());
   });
   
-  console.log(dataForSelectedDate); // Log the data
   return dataForSelectedDate;
+};
+
+export const getDataForDateRange = async (startDate: Date, endDate: Date) => {
+  const userId = getUserId(); // Automatically get the logged-in userId
+
+  // Set start time to 00:00:00 for startDate and end time to 23:59:59 for endDate
+  const startOfDay = new Date(startDate);
+  startOfDay.setHours(0, 0, 0, 0);  // Start of the day
+
+  const endOfDay = new Date(endDate);
+  endOfDay.setHours(23, 59, 59, 999);  // End of the day
+
+  // Convert dates to ISO string format for Firestore comparison
+  const startISOString = startOfDay.toISOString();
+  const endISOString = endOfDay.toISOString();
+
+  // Reference the 'additionalData' subcollection for the specific user
+  const additionalDataRef = collection(db, 'Users', userId, 'additionalData');
+
+  // Firestore query to get documents where timestamp is between start and end date
+  const q = query(
+    additionalDataRef,
+    where('timestamp', '>=', startISOString),
+    where('timestamp', '<=', endISOString)
+  );
+
+  // Execute query
+  const querySnapshot = await getDocs(q);
+
+  // This will hold the data grouped by day
+  const groupedData: { [key: string]: { time: string, value: number }[] } = {};
+
+  // Loop through the query result
+  querySnapshot.forEach((doc) => {
+    const data = doc.data();
+    const timestamp = new Date(data.timestamp);
+    const value = data.value;
+
+    // Get the day (formatted as YYYY-MM-DD)
+    const dayKey = `${timestamp.getFullYear()}-${String(timestamp.getMonth() + 1).padStart(2, '0')}-${String(timestamp.getDate()).padStart(2, '0')}`;
+    
+    // Create the structure if it doesn't exist
+    if (!groupedData[dayKey]) {
+      groupedData[dayKey] = [];
+    }
+
+    // Add the entry for this hour
+    groupedData[dayKey].push({
+      time: timestamp.toISOString(),  // Store the exact timestamp for the hour
+      value: value
+    });
+  });
+
+  // Convert the grouped data into an array for easier use or return
+  const structuredData = Object.keys(groupedData).map(day => ({
+    day,
+    data: groupedData[day]
+  }));
+
+  return structuredData;
 };
