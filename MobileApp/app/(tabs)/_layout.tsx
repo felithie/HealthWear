@@ -14,16 +14,34 @@ export default function TabLayout() {
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
       }}>
+
       <Tabs.Screen
         name="register"
         options={{
           title: 'Register',
+          href: null,
         }}
       />
+       <Tabs.Screen
+          // Name of the route to hide.
+          name="index"
+          options={{
+            // This tab will no longer show up in the tab bar.
+            href: null,
+          }}
+        />
       <Tabs.Screen
         name="userLogin"
         options={{
           title: 'Login',
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="dayGraph"
+        options={{
+          title: 'DayGraph',
+          href: null,
         }}
       />
       <Tabs.Screen

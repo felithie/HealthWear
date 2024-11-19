@@ -5,7 +5,7 @@ import { getDataForSpecificDate, generateAndSavePressureData } from '../utilitie
 import { Calendar } from 'react-native-calendars';
 import { markDates, getCurrentDate } from "../utilities/heatmapLogic";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams  } from 'expo-router';
 import { SensorCalc } from '../utilities/sensorCalculations';
 
 export default function HomeScreen() {
@@ -31,8 +31,6 @@ export default function HomeScreen() {
     return `rgb(${red}, ${green}, 0)`;
   };
   
-
-
   useEffect(() => {
     const fetchMarkedDates = async () => {
       try {
@@ -45,8 +43,6 @@ export default function HomeScreen() {
   
     fetchMarkedDates();
   }, []);
-  
-
 
   useEffect(() => {
     const interval = setInterval(async () => {
@@ -100,9 +96,11 @@ export default function HomeScreen() {
   const onDayPress = async (day: any) => {
     const selectedDate = new Date(day.timestamp);
     const data = await getDataForSpecificDate(selectedDate); // Wait for the async function to resolve
-    console.log("Day of ondaypress: " + selectedDate)
-    console.log("Data for selected day:", data);  // Log the resolved data
-  };
+    router.push({
+      pathname: "/(tabs)/dayGraph",
+      params: { graphData: JSON.stringify(data) }, // Serialize the data
+  });
+    };
   
 
   return (
@@ -114,15 +112,14 @@ export default function HomeScreen() {
       </View>
       
       <View style={styles.graphContainer}>
-        <ScrollView horizontal={false} contentContainerStyle={{ alignItems: 'center' }}>
           <Calendar
+            style={styles.calendar}
             markingType="custom"  // Use custom marking type
             current={`${currentDate.year}-${String(currentDate.month + 1).padStart(2, '0')}-${String(currentDate.day).padStart(2, '0')}`} 
             markedDates={markedDates}  // Use the memoized marked dates
             monthFormat={'yyyy MM'}
             onDayPress={onDayPress}  // Handle day press
           />
-        </ScrollView>
       </View>
       <View style={styles.realtimeOverviewContainer}>
         <View style={[styles.realtimeCircle, { backgroundColor: sensorPercentColor }]} />
@@ -131,13 +128,15 @@ export default function HomeScreen() {
           <Text style={styles.realtimePercent}>{(100 - Number(pressure) / 82.5 * 100).toFixed(1)}%</Text>
         </View>
       </View>
-      <View style={styles.logoutContainer}>
-        <TouchableOpacity style={styles.normalButton} onPress={handleLogout}>
-          <Text style={styles.buttonText}>Logout</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.normalButton} onPress={async () =>  generateAndSavePressureData(7)}>
-          <Text style={styles.buttonText}>Test Vibrate</Text>
-        </TouchableOpacity>
+      <View>
+        <View style={styles.logoutContainer}>
+          <TouchableOpacity style={styles.normalButton} onPress={handleLogout}>
+            <Text style={styles.buttonText}>Logout</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.normalButton} onPress={async () =>  router.replace("/(tabs)/dayGraph")}>
+            <Text style={styles.buttonText}>Test Vibrate</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -159,7 +158,14 @@ const styles = StyleSheet.create({
     height: "auto", 
     justifyContent: "center",
     alignItems: "center",
+    width: "100%",
   },
+  calendar: {
+    height: "auto", 
+    width: 350,  
+    borderWidth: 1,
+    borderColor: '#bd3a05',
+  },  
   realtimeOverviewContainer: {
     justifyContent: "center",
     alignItems: "center",
