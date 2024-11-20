@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { StyleSheet, TouchableOpacity, Text, View, ScrollView, Alert, Vibration } from 'react-native';
+import { StyleSheet, TouchableOpacity, Text, View, ScrollView, Alert, Vibration, Image } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { getDataForSpecificDate, generateAndSavePressureData } from '../utilities/firebaseConfig';  
 import { Calendar } from 'react-native-calendars';
@@ -12,25 +12,30 @@ export default function HomeScreen() {
   const router = useRouter();
   const currentDate = getCurrentDate();
   const [sensorPercentColor, setSensorPercentColor] = useState("green");
-  const [pressure, setPressure] = useState(String);
+  const [pressure, setPressure] = useState(null);
   const [markedDates, setmarkedDates] = useState({});
 
   let counter = 0
 
-  const sensorCalculationObj = new SensorCalc();
-
   const calculateColor = (pressure: number): string => {
+    console.log(pressure)
+    if(pressure === null) {
+      return "grey"
+    }
     const value = 100 - (pressure / 82.5) * 100; 
     const normalizedValue = Math.min(Math.max(value, 0), 100) / 100; // Normalize between 0 and 1
   
-    const adjustedValue = Math.pow(normalizedValue, 1.7); // Square root gives a faster transition
+    const adjustedValue = Math.pow(normalizedValue, 0.7); // Square root gives a faster transition
   
-    const green = Math.round(255 * adjustedValue); // Increase red more quickly
-    const red = Math.round(255 * (1 - adjustedValue)); // Decrease green more quickly
-  
+    const red = Math.round(255 * adjustedValue); // Increase red more quickly
+    const green = Math.round(255 * (1 - adjustedValue)); // Decrease green more quickly
+    
+
     return `rgb(${red}, ${green}, 0)`;
   };
-  
+
+  const sensorCalculationObj = new SensorCalc();
+
   useEffect(() => {
     const fetchMarkedDates = async () => {
       try {
@@ -45,8 +50,17 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
+    if (pressure !== null) {
+      const newColor = calculateColor(Number(pressure)); // Calculate the color based on the pressure
+      setSensorPercentColor(newColor); // Update the sensorPercentColor state
+    }
+  }, [pressure]); // Re-run this effect whenever pressure changes
+  
+
+  useEffect(() => {
     const interval = setInterval(async () => {
       const fetchedPressure = await AsyncStorage.getItem('pressure');
+
 
       if((100 - Number(fetchedPressure) / 82.5 * 100) < 80) {
         counter++
@@ -76,12 +90,11 @@ export default function HomeScreen() {
     }
   };
 
-  // Logout handler
   const handleLogout = async () => {
     try {
       await AsyncStorage.removeItem('userCredentials');
       Alert.alert('Logged Out', 'You have been successfully logged out.');
-      router.push('/(tabs)/register'); // Redirect to Register screen after logging out
+      router.push('/(tabs)/register'); 
     } catch (error) {
       console.error('Error logging out:', error);
       Alert.alert('Logout Failed', 'There was an issue logging out. Please try again.');
@@ -92,14 +105,17 @@ export default function HomeScreen() {
     fetchUserCredentials();
   }, []);
 
-  // Log the date when a day is pressed
   const onDayPress = async (day: any) => {
-    const selectedDate = new Date(day.timestamp);
-    const data = await getDataForSpecificDate(selectedDate); // Wait for the async function to resolve
-    router.push({
-      pathname: "/(tabs)/dayGraph",
-      params: { graphData: JSON.stringify(data) }, // Serialize the data
-  });
+    try {
+      const selectedDate = new Date(day.timestamp);
+      const data = await getDataForSpecificDate(selectedDate);
+      router.push({
+        pathname: "/(tabs)/dayGraph",
+        params: { graphData: JSON.stringify(data) }, 
+     });
+    } catch(error) {
+      console.log(error)
+    }
     };
   
 
@@ -107,8 +123,12 @@ export default function HomeScreen() {
     <View style={styles.mainContainer}>
       <View style={styles.titleContainer}>
         <ThemedText style={styles.titleText} type="title">
-          Welcome to the Health Device App!
+          Welcome to Backtrack!
         </ThemedText>
+        <Image
+        source={require('./backtrack.webp')}
+        style={styles.titleImage}
+      />
       </View>
       
       <View style={styles.graphContainer}>
@@ -125,7 +145,7 @@ export default function HomeScreen() {
         <View style={[styles.realtimeCircle, { backgroundColor: sensorPercentColor }]} />
         <View style={styles.realtimeTextContainer}>
           <Text style={styles.realtimeText}>How you are doing:</Text>
-          <Text style={styles.realtimePercent}>{(100 - Number(pressure) / 82.5 * 100).toFixed(1)}%</Text>
+          <Text style={styles.realtimePercent}>{pressure === null ? (100 - Number(pressure) / 82.5 * 100).toFixed(1) + "%" : "No device connected"}</Text>
         </View>
       </View>
       <View>
@@ -153,6 +173,7 @@ const styles = StyleSheet.create({
   titleContainer: {
     marginTop: 100,
     marginHorizontal: 20,
+    flexDirection: "row"
   },
   graphContainer: {
     height: "auto", 
@@ -182,6 +203,8 @@ const styles = StyleSheet.create({
   },
   titleText: {
     color: '#bd3a05',
+    width: "70%",
+    textAlign: "center"
   },
   realtimeText: {
     fontSize: 18,
@@ -190,6 +213,11 @@ const styles = StyleSheet.create({
   realtimePercent: {
     fontSize: 25,
     fontWeight: "bold"
+  },
+  titleImage: {
+    width: 70,
+    height: 70,
+    borderRadius: 40
   },
   normalButton: {
     width: '80%',
