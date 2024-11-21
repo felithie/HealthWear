@@ -128,6 +128,7 @@ export default function BluetoothScreen() {
 
   return (
     <View style={styles.container}>
+    <View style={{ marginTop: 40 }}/>
       <Text style={styles.title}>Bluetooth Devices</Text>
 
       <TouchableOpacity onPress={startScan} style={styles.button}>

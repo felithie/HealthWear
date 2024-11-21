@@ -44,30 +44,29 @@ export default function TabLayout() {
           href: null,
         }}
       />
-
+      <Tabs.Screen
+        name="about"
+        options={{
+          title: 'About',
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name={focused ? 'information' : 'information'} color={color} />
+          ),
+          
+        }}
+      />
       <Tabs.Screen
         name="home"
         options={{
-          title: 'HomeScreen',
+          title: 'Home',
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon name={focused ? 'home' : 'home-outline'} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="about"
-        options={{
-          title: 'About',
-          tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name={focused ? 'code-slash' : 'code-slash-outline'} color={color} />
-          ),
-          
-        }}
-      />
-            <Tabs.Screen
         name="bluetooth"
         options={{
-          title: 'BluetoothScreen',
+          title: 'Bluetooth',
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon name={focused ? 'bluetooth' : 'bluetooth'} color={color} />
           ),

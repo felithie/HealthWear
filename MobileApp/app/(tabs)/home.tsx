@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { StyleSheet, TouchableOpacity, Text, View, ScrollView, Alert, Vibration, Image } from 'react-native';
+import { StyleSheet, TouchableOpacity, Text, View, Alert, Vibration, Image } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
-import { getDataForSpecificDate, generateAndSavePressureData } from '../utilities/firebaseConfig';  
+import { getDataForSpecificDate, generateAndSavePressureData , saveAdditionalDataToSubcollection} from '../utilities/firebaseConfig';  
 import { Calendar } from 'react-native-calendars';
 import { markDates, getCurrentDate } from "../utilities/heatmapLogic";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter, useLocalSearchParams  } from 'expo-router';
+import { useRouter  } from 'expo-router';
 import { SensorCalc } from '../utilities/sensorCalculations';
 
 export default function HomeScreen() {
@@ -16,13 +16,12 @@ export default function HomeScreen() {
   const [markedDates, setmarkedDates] = useState({});
 
   let counter = 0
+  const calculateColor = (pressure: any): string => {
 
-  const calculateColor = (pressure: number): string => {
-    console.log(pressure)
     if(pressure === null) {
       return "grey"
     }
-    const value = 100 - (pressure / 82.5) * 100; 
+    const value = 100 - (Number(pressure) / 82.5) * 100; 
     const normalizedValue = Math.min(Math.max(value, 0), 100) / 100; // Normalize between 0 and 1
   
     const adjustedValue = Math.pow(normalizedValue, 0.7); // Square root gives a faster transition
@@ -50,10 +49,8 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    if (pressure !== null) {
-      const newColor = calculateColor(Number(pressure)); // Calculate the color based on the pressure
+      const newColor = calculateColor(pressure); // Calculate the color based on the pressure
       setSensorPercentColor(newColor); // Update the sensorPercentColor state
-    }
   }, [pressure]); // Re-run this effect whenever pressure changes
   
 
@@ -61,6 +58,15 @@ export default function HomeScreen() {
     const interval = setInterval(async () => {
       const fetchedPressure = await AsyncStorage.getItem('pressure');
 
+      if(!sensorCalculationObj.isSameHour()) {
+        if(sensorCalculationObj.temporarySavedValues.length > 0) {
+          await saveAdditionalDataToSubcollection({
+            value: sensorCalculationObj.averageCalculation(),
+            timestamp: new Date(sensorCalculationObj.lastDataUpload).toISOString()
+          })
+        }
+        sensorCalculationObj.updateLastDataUpload()
+      }
 
       if((100 - Number(fetchedPressure) / 82.5 * 100) < 80) {
         counter++
@@ -75,6 +81,10 @@ export default function HomeScreen() {
       if (fetchedPressure) {
         setPressure(fetchedPressure);
       }
+
+      sensorCalculationObj.saveValue(Number(pressure))
+
+      
     }, 1000); 
   
     return () => clearInterval(interval); // Clear the interval on unmount
@@ -106,17 +116,19 @@ export default function HomeScreen() {
   }, []);
 
   const onDayPress = async (day: any) => {
-    try {
       const selectedDate = new Date(day.timestamp);
       const data = await getDataForSpecificDate(selectedDate);
+      if(data[0] === undefined) {
+        Alert.alert("No data for this day found.")
+        return;
+      }
       router.push({
         pathname: "/(tabs)/dayGraph",
         params: { graphData: JSON.stringify(data) }, 
-     });
-    } catch(error) {
-      console.log(error)
-    }
-    };
+      });
+  }
+  
+    
   
 
   return (
@@ -145,7 +157,7 @@ export default function HomeScreen() {
         <View style={[styles.realtimeCircle, { backgroundColor: sensorPercentColor }]} />
         <View style={styles.realtimeTextContainer}>
           <Text style={styles.realtimeText}>How you are doing:</Text>
-          <Text style={styles.realtimePercent}>{pressure === null ? (100 - Number(pressure) / 82.5 * 100).toFixed(1) + "%" : "No device connected"}</Text>
+          <Text style={styles.realtimePercent}>{pressure === null ? "No device connected" : (100 - Number(pressure) / 82.5 * 100).toFixed(1) + "%"}</Text>
         </View>
       </View>
       <View>
@@ -154,7 +166,7 @@ export default function HomeScreen() {
             <Text style={styles.buttonText}>Logout</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.normalButton} onPress={async () =>  router.replace("/(tabs)/dayGraph")}>
-            <Text style={styles.buttonText}>Test Vibrate</Text>
+            <Text style={styles.buttonText} onPress={() => console.log(sensorCalculationObj.lastDataUpload)}>Test</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -183,9 +195,10 @@ const styles = StyleSheet.create({
   },
   calendar: {
     height: "auto", 
-    width: 350,  
-    borderWidth: 1,
+    width: 380,  
+    borderWidth: 2,
     borderColor: '#bd3a05',
+    borderRadius: 10
   },  
   realtimeOverviewContainer: {
     justifyContent: "center",
