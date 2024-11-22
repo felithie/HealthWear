@@ -24,10 +24,10 @@ export default function HomeScreen() {
     const value = 100 - (Number(pressure) / 82.5) * 100; 
     const normalizedValue = Math.min(Math.max(value, 0), 100) / 100; // Normalize between 0 and 1
   
-    const adjustedValue = Math.pow(normalizedValue, 0.7); // Square root gives a faster transition
+    const adjustedValue = Math.pow(normalizedValue, 1.7); // Square root gives a faster transition
   
-    const red = Math.round(255 * adjustedValue); // Increase red more quickly
-    const green = Math.round(255 * (1 - adjustedValue)); // Decrease green more quickly
+    const green = Math.round(255 * adjustedValue); // Increase red more quickly
+    const red = Math.round(255 * (1 - adjustedValue)); // Decrease green more quickly
     
 
     return `rgb(${red}, ${green}, 0)`;
@@ -50,46 +50,44 @@ export default function HomeScreen() {
 
   useEffect(() => {
       const newColor = calculateColor(pressure); // Calculate the color based on the pressure
-      setSensorPercentColor(newColor); // Update the sensorPercentColor state
-  }, [pressure]); // Re-run this effect whenever pressure changes
+      setSensorPercentColor(newColor); 
+  }, [pressure]);
   
 
   useEffect(() => {
-    const interval = setInterval(async () => {
-      const fetchedPressure = await AsyncStorage.getItem('pressure');
-
-      if(!sensorCalculationObj.isSameHour()) {
-        if(sensorCalculationObj.temporarySavedValues.length > 0) {
-          await saveAdditionalDataToSubcollection({
-            value: sensorCalculationObj.averageCalculation(),
-            timestamp: new Date(sensorCalculationObj.lastDataUpload).toISOString()
-          })
-        }
-        sensorCalculationObj.updateLastDataUpload()
-      }
-
-      if((100 - Number(fetchedPressure) / 82.5 * 100) < 80) {
-        counter++
-        if(counter >= 10) {
-          Vibration.vibrate(1000)
-        }
-      } else {
-        counter = 0
-        Vibration.cancel()
-      }
-
-      if (fetchedPressure) {
-        setPressure(fetchedPressure);
-      }
-
-      sensorCalculationObj.saveValue(Number(pressure))
-
-      
-    }, 1000); 
+    let counter = 0;
   
-    return () => clearInterval(interval); // Clear the interval on unmount
-  }, []);
-
+    const fetchPressureAndHandleUpdates = async () => {
+      try {
+        const fetchedPressure = await AsyncStorage.getItem('pressure');
+        const parsedPressure = fetchedPressure ? Number(fetchedPressure) : null;
+  
+        // Update pressure state only if it changes
+        setPressure((prevPressure) => (prevPressure !== parsedPressure ? parsedPressure : prevPressure));
+  
+        // Vibration logic
+        if (parsedPressure !== null && (100 - (parsedPressure / 82.5) * 100) < 80) {
+          counter++;
+          if (counter >= 20) {
+            Vibration.vibrate(1000); // Vibrate for 1 second
+          }
+        } else {
+          counter = 0;
+          Vibration.cancel(); // Cancel vibration if conditions no longer met
+        }
+      } catch (error) {
+        console.error('Error fetching or processing pressure:', error);
+      }
+    };
+  
+    const interval = setInterval(fetchPressureAndHandleUpdates, 1000); // Run every 1 second
+  
+    return () => {
+      clearInterval(interval); // Clean up the interval on unmount
+      Vibration.cancel(); // Ensure vibration stops
+    };
+  }, []); // Empty dependency array for running this effect only on mount/unmount
+  
 
   // Fetch user credentials and redirect if not logged in
   const fetchUserCredentials = async () => {

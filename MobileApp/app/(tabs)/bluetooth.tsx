@@ -6,12 +6,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 let manager = new BleManager(); 
 
+ 
+
 export default function BluetoothScreen() {
   const [scannedDevices, setScannedDevices]: any = useState([]);
   const [selectedDevice, setSelectedDevice]: any = useState(null);
   const [isConnected, setIsConnected]: any = useState(false);
   const [isScanning, setIsScanning]: any = useState(false);
   const [receivedData, setReceivedData]: any = useState("");  // State to hold received data
+  const [maxValue, setMaxValue]: any = useState(82.5);  // State to hold received data
 
   useEffect(() => {
     return () => {
@@ -32,7 +35,6 @@ export default function BluetoothScreen() {
       }
 
       if (device && device.name === "Team4" && device.id) {
-        // Check if the device is already in the list
         setScannedDevices((prevDevices: Device[]) => {
           const isDeviceInList = prevDevices.find(d => d.id === device.id);
           if (!isDeviceInList) {
@@ -50,7 +52,6 @@ export default function BluetoothScreen() {
     }, 10000);
   };
 
-  // Save the characteristics and device to AsyncStorage
   const saveDeviceToStorage = async (pressure: string) => {
     try {
      
@@ -60,45 +61,52 @@ export default function BluetoothScreen() {
     }
   };
   
-
-  // Connect to a selected device
   let subscription: any = null;
 
   const handleConnectDevice = async (device: Device) => {
-    if (device) {
-      try {
-        await device.connect();
-        setSelectedDevice(device);
-        setIsConnected(true);
+  if (device) {
+    try {
+      await device.connect();
+      setSelectedDevice(device);
+      setIsConnected(true);
 
-        // Discover all services and characteristics
-        await device.discoverAllServicesAndCharacteristics();
+      await device.discoverAllServicesAndCharacteristics();
 
-        // Define the characteristics data (service and characteristic UUIDs)
-        const serviceUUID = '0000180f-0000-1000-8000-00805f9b34fb';
-        const characteristicUUID = '00002a37-0000-1000-8000-00805f9b34fb';
+      const serviceUUID = '0000180f-0000-1000-8000-00805f9b34fb';
+      const characteristicUUID = '00002a37-0000-1000-8000-00805f9b34fb';
 
-        
-        // Subscribe to notifications on the characteristic
-        subscription = device.monitorCharacteristicForService(
-          serviceUUID,
-          characteristicUUID,
-          (error: any, characteristic: any) => {
-            if (error) {
-              console.warn("Error monitoring characteristic:", error);
-            } else {
-              const value = characteristic.value;
-              const decodedValue = value ? atob(value) : '';
-              saveDeviceToStorage(decodedValue)
-              setReceivedData(decodedValue);  // Set the received data
-            }
+      let lastProcessedTime = Date.now();
+      let previousData = null;
+
+      subscription = device.monitorCharacteristicForService(
+        serviceUUID,
+        characteristicUUID,
+        (error, characteristic) => {
+          if (error) {
+            console.warn("Error monitoring characteristic:", error);
+            return;
           }
-        );
-      } catch (error) {
-        console.warn("Error connecting to device:", error);
-      }
+
+          const now = Date.now();
+          const value = characteristic.value;
+          const decodedValue = value ? atob(value) : '';
+
+          // Throttle to 200 ms
+          if (now - lastProcessedTime >= 200 && decodedValue !== previousData) {
+            lastProcessedTime = now;
+            previousData = decodedValue;
+
+            saveDeviceToStorage(decodedValue);
+            setReceivedData(decodedValue);
+          }
+        }
+      );
+    } catch (error) {
+      console.warn("Error connecting to device:", error);
     }
-  };
+  }
+};
+
 
   const handleDisconnectDevice = async () => {
     if (selectedDevice) {
@@ -149,6 +157,18 @@ export default function BluetoothScreen() {
           </TouchableOpacity>
         )}
       />
+      <View style={styles.realtimeOverviewContainer}>
+        <View style={[styles.realtimeCircle, { backgroundColor: "grey" }]} />
+        <View style={styles.realtimeTextContainer}>
+          <Text style={styles.realtimeText}>How you are doing:</Text>
+          <Text style={styles.realtimePercent}>{receivedData === null ? "No device connected" : (100 - Number(receivedData) / maxValue * 100).toFixed(1) + "%"}</Text>
+          
+          <TouchableOpacity onPress={() => setMaxValue(Number(receivedData))} style={styles.button}>
+            <Text style={styles.buttonText}>Calibrate</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
 
       {isConnected && selectedDevice && (
         <View style={styles.connectionInfo}>
@@ -159,7 +179,6 @@ export default function BluetoothScreen() {
             <Text style={styles.receivedData}>Waiting for data...</Text>
           )}
 
-          {/* Disconnect button */}
           <TouchableOpacity onPress={handleDisconnectDevice} style={styles.button}>
             <Text style={styles.buttonText}>Disconnect</Text>
           </TouchableOpacity>
@@ -187,6 +206,28 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     marginTop: 10,
     alignItems: 'center',
+  },
+  realtimeOverviewContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+    width: "100%",
+    flexDirection: "row",
+  },
+  realtimeTextContainer: {
+    marginLeft: 20
+  },
+  realtimeCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+  realtimeText: {
+    fontSize: 18,
+    fontWeight: "bold"
+  },
+  realtimePercent: {
+    fontSize: 25,
+    fontWeight: "bold"
   },
   buttonText: {
     color: 'white',
